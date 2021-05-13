@@ -17,8 +17,8 @@ function outputPedigree(my::Cohort, fileName::AbstractString)
     brcStream = open(brcText,"a")
     pheStream = open(pheText,"a")
     getOurPhenVals(my)
-    nTraits = size(common.LRes,2)
-    for (k,animal) = enumerate(my.animalCohort)
+    nTraits = size(GLOBAL.LRes,2)
+    for (k,animal) = enumerate(my.animals)
         if k%1000 == 0
             println("outputPedigree(): ", k)
         end
@@ -31,10 +31,10 @@ function outputPedigree(my::Cohort, fileName::AbstractString)
         @printf(brcStream, "\n")
         @printf(pheStream, "%19d ", animal.myID)
         for i=1:nTraits
-            @printf(pheStream, "%11.3f ",animal.phenVal[i])
+            @printf(pheStream, "%11.3f ",animal.val_p[i])
         end
         for i=1:nTraits
-            @printf(pheStream, "%11.3f ",animal.genVal[i])
+            @printf(pheStream, "%11.3f ",animal.val_g[i])
         end
         @printf(pheStream, "\n")
         @printf(genStream, "%19d", animal.myID)
@@ -50,22 +50,22 @@ function outputPedigree(my::Cohort, fileName::AbstractString)
 end
 
 function outputHapData(this::Cohort, fileName::AbstractString)
-    getOurHaps(this)
+    set_genome(this)
     hapStream = open(fileName,"w")
     @printf(hapStream, "%10s ","animalID")
-    for chr in 1:common.G.numChrom
-        for locus in 1:common.G.chr[chr].numLoci
+    for chr in 1:GLOBAL.G.n_chr
+        for locus in 1:GLOBAL.G.chrs[chr].n_loci
             @printf(hapStream, "%2s", "p")
             @printf(hapStream, "%2s", "m")
         end
     end
     @printf(hapStream, "\n")
-    for animal in this.animalCohort
+    for animal in this.animals
         @printf(hapStream, "%10d ", animal.myID)
-        for chr in 1:common.G.numChrom
-            for locus in 1:common.G.chr[chr].numLoci
-                @printf(hapStream, "%2d", animal.genomePat[chr].haplotype[locus])
-                @printf(hapStream, "%2d", animal.genomeMat[chr].haplotype[locus])
+        for chr in 1:GLOBAL.G.n_chr
+            for locus in 1:GLOBAL.G.chrs[chr].n_loci
+                @printf(hapStream, "%2d", animal.genome_sire[chr].haplotype[locus])
+                @printf(hapStream, "%2d", animal.genome_dam[chr].haplotype[locus])
             end
         end
         @printf(hapStream, "\n")
@@ -74,24 +74,24 @@ function outputHapData(this::Cohort, fileName::AbstractString)
 end
 
 function outputGenData(this::Cohort, fileName::AbstractString )
-    getOurHaps(this)
+    set_genome(this)
     genStream = open(fileName,"w")
     @printf(genStream, "%10s ","animalID")
     snpID = 1
-    for chr in 1:common.G.numChrom
-        for locus in 1:common.G.chr[chr].numLoci
+    for chr in 1:GLOBAL.G.n_chr
+        for locus in 1:GLOBAL.G.chrs[chr].n_loci
             @printf(genStream, "%8d ", snpID)
             snpID += 1
         end
     end
     @printf(genStream, "\n")
-    for animal in this.animalCohort
+    for animal in this.animals
         @printf(genStream, "%10d ", animal.myID)
-        for chr in 1:common.G.numChrom
-            genotypes = animal.genomePat[chr].haplotype + animal.genomeMat[chr].haplotype
-            if common.G.genotypeErrorRate > 0.0
-                numberErrors = int(common.G.genotypeErrorRate * common.G.chr[chr].numLoci)
-                errorPos = sample([1:common.G.chr[chr].numLoci],numberErrors)
+        for chr in 1:GLOBAL.G.n_chr
+            genotypes = animal.genome_sire[chr].haplotype + animal.genome_dam[chr].haplotype
+            if GLOBAL.G.rate_error > 0.0
+                numberErrors = int(GLOBAL.G.rate_error * GLOBAL.G.chrs[chr].n_loci)
+                errorPos = sample([1:GLOBAL.G.chrs[chr].n_loci],numberErrors)
                 for i in errorPos
                     if genotypes[i]==2
                         genotypes[i] = 1
@@ -102,7 +102,7 @@ function outputGenData(this::Cohort, fileName::AbstractString )
                     end
                 end
             end
-            for locus in 1:common.G.chr[chr].numLoci
+            for locus in 1:GLOBAL.G.chrs[chr].n_loci
                 genScore = (genotypes[locus]-1)*10
                 @printf(genStream, "%4d", genScore)
             end
@@ -116,9 +116,9 @@ function outputCatData(fileName::AbstractString )
     catStream = open(fileName,"w")
     @printf(catStream, "BuildV1 Chr Pos Freq \n")
     snpID = 1
-    for chr in 1:common.G.numChrom
-        for locus in 1:common.G.chr[chr].numLoci
-            mapPos = round(Int,common.G.chr[chr].mapPos[locus]*100000000)
+    for chr in 1:GLOBAL.G.n_chr
+        for locus in 1:GLOBAL.G.chrs[chr].n_loci
+            mapPos = round(Int,GLOBAL.G.chrs[chr].mapPos[locus]*100000000)
             @printf(catStream, "%8d %3d %10d 0.5 \n", snpID, chr, mapPos)
             snpID += 1
         end
@@ -138,15 +138,15 @@ Useful so that you know the true marker effects used in your simulation.
 
 """
 function outputMarkerWithQTLEffects(fileName::AbstractString )
-    nTraits = size(common.LRes,2)
+    nTraits = size(GLOBAL.LRes,2)
 
     totalLoci=0
-    for i=1: common.G.numChrom
-        totalLoci=totalLoci+common.G.chr[i].numLoci
+    for i=1: GLOBAL.G.n_chr
+        totalLoci=totalLoci+GLOBAL.G.chrs[i].n_loci
     end
 
     allMarkerQTLinfo = fill(0.0,totalLoci,nTraits)
-    allMarkerQTLinfo[common.G.qtl_index,:] = common.G.qtl_effects
+    allMarkerQTLinfo[GLOBAL.G.qtl_index,:] = GLOBAL.G.qtl_effects
 
     catStream = open(fileName,"w")
     @printf(catStream, "CHROM\tPOS")
@@ -155,9 +155,9 @@ function outputMarkerWithQTLEffects(fileName::AbstractString )
     end
     @printf(catStream,"\n")
     snpID = 1
-    for chr in 1:common.G.numChrom
-        for locus in 1:common.G.chr[chr].numLoci
-            mapPos = round(Int,common.G.chr[chr].mapPos[locus]*100000000)
+    for chr in 1:GLOBAL.G.n_chr
+        for locus in 1:GLOBAL.G.chrs[chr].n_loci
+            mapPos = round(Int,GLOBAL.G.chrs[chr].mapPos[locus]*100000000)
             @printf(catStream, "Chr%d\t%d",chr, mapPos)
             for i in 1:nTraits
                 @printf(catStream,"\t%f",allMarkerQTLinfo[snpID,i])
