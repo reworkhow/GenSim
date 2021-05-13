@@ -27,7 +27,7 @@ function getOurHaps(my::Cohort)
     end
 end
 
-function getMyGenotype(my)
+function getMyGenotype(my::Animal)
     myGenotype=Array{AlleleIndexType}(undef,0)
     for i in 1:common.G.numChrom
         append!(myGenotype, my.genomePat[i].haplotype+my.genomeMat[i].haplotype)
@@ -35,7 +35,7 @@ function getMyGenotype(my)
     return myGenotype
 end
 
-function getMyHaps(my)
+function getMyHaps(my::Animal)
     getOneHaps(my.genomePat)
     getOneHaps(my.genomeMat)
 end
@@ -64,18 +64,14 @@ function getOneHaps(genome::Array{Chromosome,1})
             #println("getOneHaps(): segment=",segment)
             flush(stdout)
             whichFounder=ceil(Integer,genome[i].ori[segment]/2)
-            genomePatorMatInThisFounder=(genome[i].ori[segment]%2==0) ? common.founders[whichFounder].genomeMat[i] : common.founders[whichFounder].genomePat[i]
+            genomePatorMatInThisFounder::Chromosome=(genome[i].ori[segment]%2==0) ? common.founders[whichFounder].genomeMat[i] : common.founders[whichFounder].genomePat[i]
 
             startPos = genome[i].pos[segment]
             endPos   = genome[i].pos[segment+1]
             prevSegLen += segLen
             segLen   = 0
             if segment < numOri
-               numLociUntilGuessedPos = round(Int64, endPos * lociPerM)
-               numLociUntilGuessedPos = maximum([1,numLociUntilGuessedPos])
-               if numLociUntilGuessedPos > numLoci
-                   numLociUntilGuessedPos = numLoci
-               end
+               numLociUntilGuessedPos = clamp(round(Int64, endPos * lociPerM),1::Int64, numLoci)
                guessedPos = chrom.mapPos[numLociUntilGuessedPos]
                if guessedPos > endPos
                   ul = numLociUntilGuessedPos
@@ -139,7 +135,7 @@ function getOneHaps(genome::Array{Chromosome,1})
 
         for j in 1:length(genome[i].mut)
             whichlocus = findfirst(common.G.chr[i].mapPos .== genome[i].mut[j])
-            genome[i].haplotype[whichlocus] = 1 - genome[i].haplotype[whichlocus]
+            genome[i].haplotype[whichlocus] = 1::AlleleIndexType - genome[i].haplotype[whichlocus]
         end
 
         pop!(genome[i].pos) #remove temporary added chrLength
